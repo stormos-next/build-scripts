@@ -1,0 +1,490 @@
+#!/bin/ksh
+# Copyright (c) 2013 Andrew Stormont <andyjstormont@gmail.com>
+
+#
+# Exit on error
+#
+set -e
+
+#
+# It's best not to run this as root
+#
+if [ `id -u` -eq 0 ];
+then
+ echo "Please don't run this as root"
+ exit 1
+fi
+
+#
+# Location where temporary files will be stored
+#
+mkdir -p "$HOME/ifs/downloads"
+mkdir -p "$HOME/ifs/source"
+mkdir -p "$HOME/ifs/stamps"
+
+#
+# Install illumos build dependencies
+#
+if [ ! -f "$HOME/ifs/stamps/illumos-deps" ];
+then
+ sudo pkg install -v \
+  pkg:/data/docbook \
+  pkg:/developer/astdev \
+  pkg:/developer/build/make \
+  pkg:/developer/build/onbld \
+  pkg:/developer/illumos-gcc \
+  pkg:/developer/gnu-binutils \
+  pkg:/developer/opensolaris/osnet \
+  pkg:/developer/java/jdk \
+  pkg:/developer/lexer/flex \
+  pkg:/developer/object-file \
+  pkg:/developer/parser/bison \
+  pkg:/developer/versioning/git \
+  pkg:/library/glib2 \
+  pkg:/library/libxml2 \
+  pkg:/library/libxslt \
+  pkg:/library/nspr/header-nspr \
+  pkg:/library/perl-5/xml-parser \
+  pkg:/library/security/trousers \
+  pkg:/print/cups \
+  pkg:/print/filter/ghostscript \
+  pkg:/runtime/perl-510 \
+  pkg:/runtime/perl-510/extra \
+  pkg:/runtime/perl-510/module/sun-solaris \
+  pkg:/system/library/math/header-math \
+  pkg:/system/library/install \
+  pkg:/system/library/dbus \
+  pkg:/system/library/libdbus \
+  pkg:/system/library/libdbus-glib \
+  pkg:/system/library/mozilla-nss/header-nss \
+  pkg:/system/header \
+  pkg:/system/management/product-registry \
+  pkg:/system/management/snmp/net-snmp \
+  pkg:/text/gnu-gettext \
+  pkg:/library/python-2/python-extra-24 \
+  pkg:/web/server/apache-13 \
+ || [ $? = 4 ] # already installed
+ touch "$HOME/ifs/stamps/illumos-deps"
+fi
+
+#
+# Checkout illumos source code
+#
+if [ ! -f "$HOME/ifs/stamps/illumos-clone" ];
+then
+ cd "$HOME/ifs"
+ rm -rf illumos-gate
+ git clone git://github.com/illumos/illumos-gate.git
+ touch "$HOME/ifs/stamps/illumos-clone"
+fi
+
+#
+# Create ifs.sh environment file
+#
+cd "$HOME/ifs/illumos-gate"
+cat usr/src/tools/env/illumos.sh | \
+ sed -e "s#^export GATE='.*'\$#export GATE=\"illumos-gate\"#g" \
+  -e "s#^export CODEMGR_WS=\".*\"\$#export CODEMGR_WS=\"$HOME/ifs/illumos-gate\"#g" \
+  -e "s#^export ROOT=\".*\"\$#export ROOT=\"$HOME/ifs/chroot\"#g" \
+  -e "s#^export VERSION=\".*\"\$#export VERSION=\"ifs\"#g" \
+  -e "s#^export STAFFER=\".*\"\$#export STAFFER=\"$LOGNAME\"#g" \
+  -e "s#^export NIGHTLY_OPTIONS='.*'\$#export NIGHTLY_OPTIONS='-FnCit'#g" \
+ > ifs.sh
+
+#
+# Download and extract closed binaries
+#
+if [ ! -f "$HOME/ifs/stamps/closed-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f on-closed-bins.i386.tar.bz2 on-closed-bins-nd.i386.tar.bz2
+ wget http://dlc.sun.com/osol/on/downloads/20100817/on-closed-bins.i386.tar.bz2
+ wget http://dlc.sun.com/osol/on/downloads/20100817/on-closed-bins-nd.i386.tar.bz2
+ touch "$HOME/ifs/stamps/closed-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/closed-unpack" ];
+then
+ cd "$HOME/ifs/illumos-gate"
+ tar xjpf "$HOME/ifs/downloads/on-closed-bins.i386.tar.bz2"
+ tar xjpf "$HOME/ifs/downloads/on-closed-bins-nd.i386.tar.bz2"
+ touch "$HOME/ifs/stamps/closed-unpack"
+fi
+
+#
+# Run illumos setup and install targets
+#
+if [ ! -f "$HOME/ifs/stamps/illumos-setup" ];
+then
+ cd "$HOME/ifs/illumos-gate"
+ ksh ./usr/src/tools/scripts/bldenv.sh -c ifs.sh 'cd usr/src && dmake setup'
+ touch "$HOME/ifs/stamps/illumos-setup"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/illumos-install" ];
+then
+ cd "$HOME/ifs/illumos-gate"
+ ksh ./usr/src/tools/scripts/bldenv.sh -c ifs.sh 'cd usr/src && dmake install'
+ touch "$HOME/ifs/stamps/illumos-install"
+fi
+
+#
+# Download and extract libm
+#
+if [ ! -f "$HOME/ifs/stamps/libm-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f devpro-libm-src-20060131.tar.bz2
+ wget http://dlc.sun.com/osol/devpro/downloads/current/devpro-libm-src-20060131.tar.bz2
+ touch "$HOME/ifs/stamps/libm-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libm-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf libm
+ mkdir libm
+ cd libm
+ tar xjpf "$HOME/ifs/downloads/devpro-libm-src-20060131.tar.bz2"
+ touch "$HOME/ifs/stamps/libm-unpack"
+fi
+
+#
+# Build and install libm
+#
+if [ ! -f "$HOME/ifs/stamps/libm-install" ];
+then
+ cd "$HOME/ifs/source/libm/usr/src/harness"
+ dmake -f Makefile-os DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/libm-install"
+fi
+
+#
+# Download and extract libxml
+#
+if [ ! -f "$HOME/ifs/stamps/libxml-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f libxml2-2.7.6.tar.gz
+ wget ftp://xmlsoft.org/libxml2/libxml2-2.7.6.tar.gz
+ touch "$HOME/ifs/stamps/libxml-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libxml-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf libxml2-2.7.6
+ tar xzpf "$HOME/ifs/downloads/libxml2-2.7.6.tar.gz"
+ touch "$HOME/ifs/stamps/libxml-unpack"
+fi
+
+#
+# Patch and configure libxml
+#
+if [ ! -f "$HOME/ifs/stamps/libxml-patch" ];
+then
+ cd "$HOME/ifs/source/libxml2-2.7.6"
+ for patch in `echo $HOME/ifs/patches/libxml/*.patch`;
+ do
+  patch -p1 < "$patch" || exit $?
+ done
+ cp "$HOME/ifs/patches/libxml/mapfile" libxml2.syms
+ touch "$HOME/ifs/stamps/libxml-patch"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libxml-configure" ];
+then
+ cd "$HOME/ifs/source/libxml2-2.7.6"
+ rm -f config.status
+ ./configure --prefix=/usr --disable-static \
+  --with-pic --with-threads --without-python
+ touch "$HOME/ifs/stamps/libxml-configure"
+fi
+
+#
+# Build and install libxml
+#
+if [ ! -f "$HOME/ifs/stamps/libxml-build" ];
+then
+ cd "$HOME/ifs/source/libxml2-2.7.6"
+ gmake
+ touch "$HOME/ifs/stamps/libxml-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libxml-install" ];
+then
+ cd "$HOME/ifs/source/libxml2-2.7.6"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/libxml-install"
+fi
+
+#
+# Download and extract libz
+#
+if [ ! -f "$HOME/ifs/stamps/libz-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f zlib-1.2.3.tar.gz
+ wget http://downloads.sourceforge.net/project/libpng/zlib/1.2.3/zlib-1.2.3.tar.gz
+ touch "$HOME/ifs/stamps/libz-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libz-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf zlib-1.2.3
+ tar xzpf "$HOME/ifs/downloads/zlib-1.2.3.tar.gz"
+ touch "$HOME/ifs/stamps/libz-unpack"
+fi
+
+#
+# Patch and configure libz
+#
+if [ ! -f "$HOME/ifs/stamps/libz-patch" ];
+then
+ cd "$HOME/ifs/source/zlib-1.2.3"
+ for patch in `echo $HOME/ifs/patches/zlib/*.patch`;
+ do
+  patch -p1 < "$patch" || exit $?
+ done
+ cp "$HOME/ifs/patches/zlib/mapfile" zlib.syms
+ touch "$HOME/ifs/stamps/libz-patch"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libz-configure" ];
+then
+ cd "$HOME/ifs/source/zlib-1.2.3"
+ rm -f config.status
+ ./configure --shared --prefix=/usr --libdir=/usr/lib
+ touch "$HOME/ifs/stamps/libz-configure"
+fi
+
+#
+# Build and install libz
+#
+if [ ! -f "$HOME/ifs/stamps/libz-build" ];
+then
+ cd "$HOME/ifs/source/zlib-1.2.3"
+ gmake LDSHARED="gcc -shared -G -h libz.so.1 -Wl,-M,zlib.syms -L."
+ touch "$HOME/ifs/stamps/libz-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/libz-install" ];
+then
+ cd "$HOME/ifs/source/zlib-1.2.3"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/libz-install"
+fi
+
+#
+# Download and unpack wget
+#
+if [ ! -f "$HOME/ifs/stamps/wget-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f wget-1.12.tar.bz2
+ wget http://ftp.gnu.org/gnu/wget/wget-1.12.tar.bz2
+ touch "$HOME/ifs/stamps/wget-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/wget-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf wget-1.12
+ tar xjpf "$HOME/ifs/downloads/wget-1.12.tar.bz2"
+ touch "$HOME/ifs/stamps/wget-unpack"
+fi
+
+#
+# Patch and configure wget
+#
+if [ ! -f "$HOME/ifs/stamps/wget-patch" ];
+then
+ cd "$HOME/ifs/source/wget-1.12"
+ for patch in `echo $HOME/ifs/patches/wget/*.patch`;
+ do
+  patch -p1 < "$patch" || exit $?
+ done
+ touch "$HOME/ifs/stamps/wget-patch"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/wget-configure" ];
+then
+ cd "$HOME/ifs/source/wget-1.12"
+ rm -f config.status
+ ./configure --prefix=/usr --sysconfdir=/etc \
+  --without-ssl --disable-iri
+ touch "$HOME/ifs/stamps/wget-configure"
+fi
+
+#
+# Build and install wget
+#
+if [ ! -f "$HOME/ifs/stamps/wget-build" ];
+then
+ cd "$HOME/ifs/source/wget-1.12"
+ gmake
+ touch "$HOME/ifs/stamps/wget-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/wget-install" ];
+then
+ cd "$HOME/ifs/source/wget-1.12"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/wget-install"
+fi
+
+#
+# Download and extract gzip
+#
+if [ ! -f "$HOME/ifs/stamps/gzip-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f gzip-1.3.5.tar.gz
+ wget http://alpha.gnu.org/gnu/gzip/gzip-1.3.5.tar.gz
+ touch "$HOME/ifs/stamps/gzip-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gzip-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf gzip-1.3.5
+ tar xzpf "$HOME/ifs/downloads/gzip-1.3.5.tar.gz"
+ touch "$HOME/ifs/stamps/gzip-unpack"
+fi
+
+#
+# Configure gzip
+#
+if [ ! -f "$HOME/ifs/stamps/gzip-configure" ];
+then
+ cd "$HOME/ifs/source/gzip-1.3.5"
+ ./configure --prefix=/usr
+ touch "$HOME/ifs/stamps/gzip-configure"
+fi
+
+#
+# Build and install gzip
+#
+if [ ! -f "$HOME/ifs/stamps/gzip-build" ];
+then
+ cd "$HOME/ifs/source/gzip-1.3.5"
+ gmake
+ touch "$HOME/ifs/stamps/gzip-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gzip-install" ];
+then
+ cd "$HOME/ifs/source/gzip-1.3.5"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/gzip-install"
+fi
+
+#
+# Download and extract bzip
+#
+if [ ! -f "$HOME/ifs/stamps/bzip-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f bzip2-1.0.6.tar.gz
+ wget http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+ touch "$HOME/ifs/stamps/bzip-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/bzip-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf bzip2-1.0.6
+ tar xzpf "$HOME/ifs/downloads/bzip2-1.0.6.tar.gz"
+ touch "$HOME/ifs/stamps/bzip-unpack"
+fi
+
+#
+# Build and install bzip
+#
+if [ ! -f "$HOME/ifs/stamps/bzip-build" ];
+then
+ cd "$HOME/ifs/source/bzip2-1.0.6"
+ gmake
+ touch "$HOME/ifs/stamps/bzip-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/bzip-install" ];
+then
+ cd "$HOME/ifs/source/bzip2-1.0.6"
+ gmake install PREFIX="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/bzip-install"
+fi
+
+#
+# Download and unpack bash
+#
+if [ ! -f "$HOME/ifs/stamps/bash-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f bash-4.1.tar.gz
+ wget http://ftp.gnu.org/gnu/bash/bash-4.1.tar.gz
+ touch "$HOME/ifs/stamps/bash-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/bash-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf bash-4.1
+ tar xzpf "$HOME/ifs/downloads/bash-4.1.tar.gz"
+ touch "$HOME/ifs/stamps/bash-unpack"
+fi
+
+#
+# Configure bash
+#
+if [ ! -f "$HOME/ifs/stamps/bash-configure" ];
+then
+ cd "$HOME/ifs/source/bash-4.1"
+ ./configure --prefix=/usr
+ touch "$HOME/ifs/stamps/bash-configure"
+fi
+
+#
+# Build and install bash
+#
+if [ ! -f "$HOME/ifs/stamps/bash-build" ];
+then
+ cd "$HOME/ifs/source/bash-4.1"
+ gmake
+ touch "$HOME/ifs/stamps/bash-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/bash-install" ];
+then
+ cd "$HOME/ifs/source/bash-4.1"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/bash-install"
+fi
+
+#
+# Download and extract illumos-gcc
+#
+if [ ! -f "$HOME/ifs/stamps/gcc-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f il-gcc-444-i386.tar.bz2
+ wget http://richlowe.openindiana.org/~richlowe/il-gcc-444-i386.tar.bz2
+ touch "$HOME/ifs/stamps/gcc-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gcc-unpack" ];
+then
+ cd "$HOME/ifs/chroot/opt"
+ tar xjpf "$HOME/ifs/downloads/il-gcc-444-i386.tar.bz2"
+ ln "$HOME/ifs/chroot/opt/gcc/4.4.4/lib/libgcc_s.so.1" "$HOME/ifs/chroot/lib"
+ touch "$HOME/ifs/stamps/gcc-unpack"
+fi
+
+#
+# Generate /etc/make.conf
+#
+cat > "$HOME/ifs/chroot/etc/make.conf" <<EOF
+CHOST="i386-pc-solaris2.11"
+CFLAGS="-O2 -pipe"
+EOF
