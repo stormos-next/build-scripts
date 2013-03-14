@@ -56,6 +56,7 @@ fi
 if [ ! -f "$HOME/ifs/stamps/binutils-configure" ];
 then
  cd "$HOME/ifs/source/binutils-2.19.1"
+ rm -f config.status
  ./configure --prefix=/usr/gnu --enable-64bit-bfd
  touch "$HOME/ifs/stamps/binutils-configure"
 fi
@@ -112,6 +113,7 @@ fi
 if [ ! -f "$HOME/ifs/stamps/mpfr-configure" ];
 then
  cd "$HOME/ifs/source/mpfr-2.4.2"
+ rm -f config.status
  CC=/opt/gcc/4.4.4/bin/gcc CXX=/opt/gcc/4.4.4/bin/g++ \
   ./configure --includedir=/usr/include/mpfr \
    --prefix=/usr --localstatedir=/var --enable-shared \
@@ -164,6 +166,7 @@ fi
 if [ ! -f "$HOME/ifs/stamps/gmp-configure" ];
 then
  cd "$HOME/ifs/source/gmp-4.3.2"
+ rm -f config.status
  ABI=32 ./configure --prefix=/usr --enable-cxx --disable-static
  touch "$HOME/ifs/stamps/gmp-configure"
 fi
@@ -210,6 +213,7 @@ fi
 if [ ! -f "$HOME/ifs/stamps/make-configure" ];
 then
  cd "$HOME/ifs/source/make-3.81"
+ rm -f config.status
  ./configure --prefix=/usr
  touch "$HOME/ifs/stamps/make-configure"
 fi
@@ -232,6 +236,52 @@ then
 fi
 
 #
+# Download and extract gawk
+#
+if [ ! -f "$HOME/ifs/stamps/gawk-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f gawk-4.0.0.tar.gz
+ wget http://ftp.gnu.org/gnu/gawk/gawk-4.0.0.tar.gz
+ touch "$HOME/ifs/stamps/gawk-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gawk-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf gawk-4.0.0
+ tar xzpf "$HOME/ifs/downloads/gawk-4.0.0.tar.gz"
+ touch "$HOME/ifs/stamps/gawk-unpack"
+fi
+
+#
+# Configure gawk
+#
+if [ ! -f "$HOME/ifs/stamps/gawk-configure" ];
+then
+ cd "$HOME/ifs/source/gawk-4.0.0"
+ ./configure --prefix=/usr --without-libsigsegv-prefix
+ touch "$HOME/ifs/stamps/gawk-configure"
+fi
+
+#
+# Build and install gawk
+#
+if [ ! -f "$HOME/ifs/stamps/gawk-build" ];
+then
+ cd "$HOME/ifs/source/gawk-4.0.0"
+ gmake
+ touch "$HOME/ifs/stamps/gawk-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gawk-install" ];
+then
+ cd "$HOME/ifs/source/gawk-4.0.0"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/gawk-install"
+fi
+
+#
 # Download and extract illumos-gcc
 #
 if [ ! -f "$HOME/ifs/stamps/gcc-download" ];
@@ -249,3 +299,55 @@ then
  ln "$HOME/ifs/chroot/opt/gcc/4.4.4/lib/libgcc_s.so.1" "$HOME/ifs/chroot/lib"
  touch "$HOME/ifs/stamps/gcc-unpack"
 fi
+
+#
+# Download and extract rsync
+#
+if [ ! -f "$HOME/ifs/stamps/rsync-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f rsync-3.0.8.tar.gz
+ wget http://rsync.samba.org/ftp/rsync/src/rsync-3.0.8.tar.gz
+ touch "$HOME/ifs/stamps/rsync-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/rsync-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf rsync-3.0.8
+ tar xzpf "$HOME/ifs/downloads/rsync-3.0.8.tar.gz"
+ touch "$HOME/ifs/stamps/rsync-unpack"
+fi
+
+#
+# Configure rsync
+#
+if [ ! -f "$HOME/ifs/stamps/rsync-configure" ];
+then
+ cd "$HOME/ifs/source/rsync-3.0.8"
+ rm -f config.status
+ ./configure --prefix=/usr --with-included-popt
+ touch "$HOME/ifs/stamps/rsync-configure"
+fi
+
+#
+# Build and install rsync
+#
+if [ ! -f "$HOME/ifs/stamps/rsync-build" ];
+then
+ cd "$HOME/ifs/source/rsync-3.0.8"
+ gmake
+ touch "$HOME/ifs/stamps/rsync-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/rsync-install" ];
+then
+ cd "$HOME/ifs/source/rsync-3.0.8"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/rsync-install"
+fi
+
+#
+# Build tools are ready in chroot
+#
+touch "$HOME/ifs/stamps/buildenv-chroot"
