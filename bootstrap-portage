@@ -1,31 +1,5 @@
 #!/bin/sh
 
-if [ -e /etc/make.conf ] ; then
-	if [ -z "${CHOST}" ] ; then
-		CHOST=$(source /etc/make.conf 2>/dev/null ; echo ${CHOST})
-	fi
-	if [ -z "${CFLAGS}" ] ; then
-		CFLAGS=$(source /etc/make.conf 2>/dev/null ; echo ${CFLAGS})
-	fi
-fi
-if [ -z "${CHOST}" ] ; then
-	echo "Please set CHOST"
-	exit 1
-fi
-if [ -z "${CFLAGS}" ] ; then
-	echo "Please set CFLAGS"
-	exit 1
-fi
-if [ -z "${ARCH}" ] ; then
-	ARCH=$(portageq envvar ARCH 2>/dev/null)
-	if [ -z "${ARCH}" ] ; then
-		echo "Please set ARCH"
-		exit 1
-	fi
-fi
-[ -z "${MAKEOPTS}" ] && MAKEOPTS=${MAKEFLAGS}
-export CHOST CFLAGS MAKEOPTS ARCH
-
 PORTDIR=/usr/portage
 DISTDIR=${PORTDIR}/distfiles
 PORTAGE_TMPDIR=/var/tmp
@@ -37,7 +11,7 @@ echo "Going to try to boostrap python / portage if needed."
 echo "Python ${PYTHON_VER}"
 echo "Portage ${PORTAGE_VER}"
 echo
-for n in CHOST CFLAGS ARCH MAKEOPTS PORTDIR DISTDIR PORTAGE_TMPDIR ; do
+for n in PORTDIR DISTDIR PORTAGE_TMPDIR ; do
 	eval v=\$$n
 	echo "${n} = ${v}"
 done
@@ -60,7 +34,6 @@ econf() {
 		CC='/opt/gcc/4.4.4/bin/gcc' \
 		CXX='/opt/gcc/4.4.4/bin/g++' \
 		--prefix=/usr \
-		--host=${CHOST} \
 		--mandir=/usr/share/man \
 		--infodir=/usr/share/info \
 		--datadir=/usr/share \
@@ -70,7 +43,7 @@ econf() {
 	"$@" >& .config.log || die .config.log
 }
 emake() {
-	set -- make ${MAKEOPTS} "$@"
+	set -- make "$@"
 	echo "$@"
 	"$@" >& .build.log || die .build.log
 }
@@ -110,7 +83,6 @@ if [ ! -x /usr/bin/python ] ; then
 
 	export PYTHON_DISABLE_MODULES="readline pyexpat dbm gdbm bsddb _curses _curses_panel _tkinter"
 	export PYTHON_DISABLE_SSL=1
-	export OPT="${CFLAGS}"
 
 	econf \
 		--enable-unicode=ucs4 \
@@ -161,17 +133,7 @@ src_install() {
 	dodir "$portage_share_config" || die
 	insinto "$portage_share_config"
 	doins "$S/cnf/make.globals" || die
-	if [ -f "make.conf.${ARCH}".diff ]; then
-		patch make.conf "make.conf.${ARCH}".diff || \
-			die "Failed to patch make.conf.example"
-		newins make.conf make.conf.example || die
-	else
-		eerror ""
-		eerror "Portage does not have an arch-specific configuration for this arch."
-		eerror "Please notify the arch maintainer about this issue. Using generic."
-		eerror ""
-		newins make.conf make.conf.example || die
-	fi
+	newins make.conf make.conf.example || die
 
 	dosym ..${portage_share_config}/make.globals /etc/make.globals
 
