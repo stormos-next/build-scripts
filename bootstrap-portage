@@ -30,12 +30,10 @@ PORTDIR=/usr/portage
 DISTDIR=${PORTDIR}/distfiles
 PORTAGE_TMPDIR=/var/tmp
 
-BASH_VER=4.2
-PORTAGE_VER=2.1.10.11
+PORTAGE_VER=2.1.11.52
 PYTHON_VER=2.7.2
 
-echo "Going to try to boostrap bash / python / portage if needed."
-echo "Bash ${BASH_VER}"
+echo "Going to try to boostrap python / portage if needed."
 echo "Python ${PYTHON_VER}"
 echo "Portage ${PORTAGE_VER}"
 echo
@@ -53,6 +51,9 @@ die() {
 	[ $# -gt 0 ] && cat "$1"
 	exit 1
 }
+eerror() {
+	echo "Error: $@" >&2
+}
 econf() {
 	set -- \
 	${ECONF_SOURCE:-.}/configure \
@@ -64,8 +65,6 @@ econf() {
 		--infodir=/usr/share/info \
 		--datadir=/usr/share \
 		--sysconfdir=/etc \
-		--infodir='${prefix}'/share/info \
-		--mandir='${prefix}'/share/man \
 		--localstatedir=/var/lib "$@"
 	echo "$@"
 	"$@" >& .config.log || die .config.log
@@ -103,23 +102,6 @@ src_unpack() {
 }
 
 ######################
-# bootstrap bash
-######################
-V=$(bash -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null)
-if [ "${V}" -lt 4 ] ; then
-	src_fetch bash ${BASH_VER} '${P}.tar.gz' http://ftp.gnu.org/gnu/bash
-	src_unpack
-
-	econf
-	emake
-	cp -a bash /bin/.bash
-	mv /bin/.bash /bin/bash
-else
-	echo "bash seems to be up-to-date; skipping"
-fi
-
-
-######################
 # bootstrap python
 ######################
 if [ ! -x /usr/bin/python ] ; then
@@ -155,10 +137,15 @@ if [ ! -x /usr/bin/emerge ] ; then
 	dodir() { mkdir -p "$@" ; }
 	keepdir() { dodir "$@" ; }
 	insinto() { INSDESTTREE=$1 ; }
-	doins() { cp -a "$@" "$INSDESTTREE/" || die ; }
-	newins() { cp -a "$1" "$INSDESTTREE/$2" || die ; }
+	doins() { cp -p "$@" "$INSDESTTREE/" || die ; }
+	newins() { cp -p "$1" "$INSDESTTREE/$2" || die ; }
 	exeinto() { EXEDESTTREE=$1 ; }
-	doexe() { install -m 755 "$@" "$EXEDESTTREE/" ; }
+doexe() {
+	for exe in $@; do
+		cp "$exe" "$EXEDESTTREE/" || die ;
+		chmod 755 "$EXEDESTTREE/"`basename $exe` || die ;
+	done
+}
 	get_libdir() { echo lib ; }
 	dosym() { ln -sf "$@" || die ; }
 	dodoc() { :; }
@@ -171,6 +158,7 @@ src_install() {
 	insinto /etc
 	doins etc-update.conf dispatch-conf.conf || die
 
+	dodir "$portage_share_config" || die
 	insinto "$portage_share_config"
 	doins "$S/cnf/make.globals" || die
 	if [ -f "make.conf.${ARCH}".diff ]; then
@@ -187,8 +175,8 @@ src_install() {
 
 	dosym ..${portage_share_config}/make.globals /etc/make.globals
 
-	insinto /etc/logrotate.d
-	doins "${S}"/cnf/logrotate.d/elog-save-summary || die
+	#insinto /etc/logrotate.d
+	#doins "${S}"/cnf/logrotate.d/elog-save-summary || die
 
 	# BSD and OSX need a sed wrapper so that find/xargs work properly
 	if use userland_GNU; then
@@ -199,6 +187,7 @@ src_install() {
 
 	cd "$S" || die "cd failed"
 	for x in $(find bin -type d) ; do
+		dodir $portage_base/$x || die "dodir failed"
 		exeinto $portage_base/$x || die "exeinto failed"
 		cd "$S"/$x || die "cd failed"
 		files=$(find . -mindepth 1 -maxdepth 1 -type f ! -type l)
@@ -207,12 +196,13 @@ src_install() {
 		fi
 		symlinks=$(find . -mindepth 1 -maxdepth 1 -type l)
 		if [ -n "$symlinks" ] ; then
-			cp -P $symlinks "$D$portage_base/$x" || die "cp failed"
+			cp -p $symlinks "$D$portage_base/$x" || die "cp failed"
 		fi
 	done
 
 	cd "$S" || die "cd failed"
-	for x in $(find pym/* -type d ! -path "pym/portage/tests*") ; do
+	for x in $(find pym/* -type d | grep -v "pym/portage/tests") ; do
+		dodir $portage_base/$x || die "dodir failed"
 		insinto $portage_base/$x || die "insinto failed"
 		cd "$S"/$x || die "cd failed"
 		# __pycache__ directories contain no py files
@@ -220,7 +210,7 @@ src_install() {
 		doins *.py || die "doins failed"
 		symlinks=$(find . -mindepth 1 -maxdepth 1 -type l)
 		if [ -n "$symlinks" ] ; then
-			cp -P $symlinks "$D$portage_base/$x" || die "cp failed"
+			cp -p $symlinks "$D$portage_base/$x" || die "cp failed"
 		fi
 	done
 
@@ -228,10 +218,12 @@ src_install() {
 	# These tests must be able to run without a full source tree and
 	# without relying on a previous portage instance being installed.
 	cd "$S" || die "cd failed"
+	dodir $portage_base/pym/portage/tests || die
 	exeinto $portage_base/pym/portage/tests || die
 	doexe pym/portage/tests/runTests || die
 	insinto $portage_base/pym/portage/tests || die
 	doins pym/portage/tests/*.py || die
+	dodir $portage_base/pym/portage/tests/lint || die
 	insinto $portage_base/pym/portage/tests/lint || die
 	doins pym/portage/tests/lint/*.py || die
 	doins pym/portage/tests/lint/__test__ || die
@@ -288,6 +280,5 @@ fi
 ######################
 # setup misc configs
 ######################
-grep -qs ^wheel: /etc/group    || echo "wheel::10:root" >> /etc/group
-grep -qs ^portage: /etc/group  || echo "portage::250:portage" >> /etc/group
-grep -qs ^portage: /etc/passwd || echo "portage:x:250:250:portage:/var/tmp/portage:/bin/false" >> /etc/passwd
+grep -qs ^portage: /etc/group || groupadd -g 250 portage
+grep -qs ^portage: /etc/passwd || echo portage:x:250:250:portage:/var/tmp/portage:/bin/false >> /etc/passwd

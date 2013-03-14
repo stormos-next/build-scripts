@@ -463,28 +463,6 @@ then
 fi
 
 #
-# Download and extract illumos-gcc
+# New illumos chroot is ready
 #
-if [ ! -f "$HOME/ifs/stamps/gcc-download" ];
-then
- cd "$HOME/ifs/downloads"
- rm -f il-gcc-444-i386.tar.bz2
- wget http://richlowe.openindiana.org/~richlowe/il-gcc-444-i386.tar.bz2
- touch "$HOME/ifs/stamps/gcc-download"
-fi
-
-if [ ! -f "$HOME/ifs/stamps/gcc-unpack" ];
-then
- cd "$HOME/ifs/chroot/opt"
- tar xjpf "$HOME/ifs/downloads/il-gcc-444-i386.tar.bz2"
- ln "$HOME/ifs/chroot/opt/gcc/4.4.4/lib/libgcc_s.so.1" "$HOME/ifs/chroot/lib"
- touch "$HOME/ifs/stamps/gcc-unpack"
-fi
-
-#
-# Generate /etc/make.conf
-#
-cat > "$HOME/ifs/chroot/etc/make.conf" <<EOF
-CHOST="i386-pc-solaris2.11"
-CFLAGS="-O2 -pipe"
-EOF
+touch "$HOME/ifs/stamps/illumos-chroot"

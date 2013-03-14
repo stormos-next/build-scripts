@@ -1,0 +1,251 @@
+#!/bin/ksh
+# Copyright (c) 2013 Andrew Stormont <andyjstormont@gmail.com>
+
+#
+# Exit on error
+#
+set -e
+
+#
+# It's best not to run this as root
+#
+if [ `id -u` -eq 0 ];
+then
+ echo "Please don't run this as root"
+ exit 1
+fi
+
+#
+# Make sure illumos chroot is ready first
+#
+if [ ! -f "$HOME/ifs/stamps/illumos-chroot" ];
+then
+ echo "Please run bootstrap-illumos first"
+ exit 1
+fi
+
+#
+# Location where temporary files will be stored
+#
+mkdir -p "$HOME/ifs/downloads"
+mkdir -p "$HOME/ifs/source"
+mkdir -p "$HOME/ifs/stamps"
+
+#
+# Download and extract binutils
+#
+if [ ! -f "$HOME/ifs/stamps/binutils-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f binutils-2.19.1.tar.bz2
+ wget http://ftp.gnu.org/gnu/binutils/binutils-2.19.1.tar.bz2
+ touch "$HOME/ifs/stamps/binutils-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/binutils-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf binutils-2.19.1
+ tar xjpf "$HOME/ifs/downloads/binutils-2.19.1.tar.bz2"
+ touch "$HOME/ifs/stamps/binutils-unpack"
+fi
+
+#
+# Configure binutils
+#
+if [ ! -f "$HOME/ifs/stamps/binutils-configure" ];
+then
+ cd "$HOME/ifs/source/binutils-2.19.1"
+ ./configure --prefix=/usr/gnu --enable-64bit-bfd
+ touch "$HOME/ifs/stamps/binutils-configure"
+fi
+
+#
+# Build and install binutils
+#
+if [ ! -f "$HOME/ifs/stamps/binutils-build" ];
+then
+ cd "$HOME/ifs/source/binutils-2.19.1"
+ gmake
+ touch "$HOME/ifs/stamps/binutils-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/binutils-install" ];
+then
+ cd "$HOME/ifs/source/binutils-2.19.1"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/binutils-install"
+fi
+
+#
+# Download and extract mpfr
+#
+if [ ! -f "$HOME/ifs/stamps/mpfr-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f mpfr-2.4.2.tar.gz
+ wget http://www.mpfr.org/mpfr-2.4.2/mpfr-2.4.2.tar.gz
+ touch "$HOME/ifs/stamps/mpfr-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/mpfr-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf mpfr-2.4.2
+ tar xzpf "$HOME/ifs/downloads/mpfr-2.4.2.tar.gz"
+ touch "$HOME/ifs/stamps/mpfr-unpack"
+fi
+
+#
+# Patch and configure mpfr
+#
+if [ ! -f "$HOME/ifs/stamps/mpfr-patch" ];
+then
+ cd "$HOME/ifs/source/mpfr-2.4.2"
+ for patch in `echo $HOME/ifs/patches/mpfr/*.patch`;
+ do
+  patch -p0 < "$patch" || exit $?
+ done
+ touch "$HOME/ifs/stamps/mpfr-patch"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/mpfr-configure" ];
+then
+ cd "$HOME/ifs/source/mpfr-2.4.2"
+ CC=/opt/gcc/4.4.4/bin/gcc CXX=/opt/gcc/4.4.4/bin/g++ \
+  ./configure --includedir=/usr/include/mpfr \
+   --prefix=/usr --localstatedir=/var --enable-shared \
+   --disable-static --disable-libtool-lock \
+   --enable-thread-safe --enable-tests-timeout=0 \
+   --with-gmp-include=/usr/include/gmp \
+   --with-gmp-lib=/usr/lib --with-mulhigh-size=2048
+ touch "$HOME/ifs/stamps/mpfr-configure"
+fi
+
+#
+# Build and install mpfr
+#
+if [ ! -f "$HOME/ifs/stamps/mpfr-build" ];
+then
+ cd "$HOME/ifs/source/mpfr-2.4.2"
+ gmake
+ touch "$HOME/ifs/stamps/mpfr-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/mpfr-install" ];
+then
+ cd "$HOME/ifs/source/mpfr-2.4.2"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/mpfr-install"
+fi
+
+#
+# Download and unpack gmp
+#
+if [ ! -f "$HOME/ifs/stamps/gmp-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f gmp-4.3.2.tar.bz2
+ wget ftp://ftp.gmplib.org/pub/gmp-4.3.2/gmp-4.3.2.tar.bz2
+ touch "$HOME/ifs/stamps/gmp-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gmp-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf gmp-4.3.2
+ tar xjpf "$HOME/ifs/downloads/gmp-4.3.2.tar.bz2"
+ touch "$HOME/ifs/stamps/gmp-unpack"
+fi
+
+#
+# Configure gmp
+#
+if [ ! -f "$HOME/ifs/stamps/gmp-configure" ];
+then
+ cd "$HOME/ifs/source/gmp-4.3.2"
+ ABI=32 ./configure --prefix=/usr --enable-cxx --disable-static
+ touch "$HOME/ifs/stamps/gmp-configure"
+fi
+
+#
+# Build and install gmp
+#
+if [ ! -f "$HOME/ifs/stamps/gmp-build" ];
+then
+ cd "$HOME/ifs/source/gmp-4.3.2"
+ gmake
+ touch "$HOME/ifs/stamps/gmp-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gmp-install" ];
+then
+ cd "$HOME/ifs/source/gmp-4.3.2"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/gmp-install"
+fi
+
+#
+# Download and unpack make
+#
+if [ ! -f "$HOME/ifs/stamps/make-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f make-3.81.tar.gz
+ wget http://ftp.gnu.org/gnu/make/make-3.81.tar.gz
+ touch "$HOME/ifs/stamps/make-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/make-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf make-3.81
+ tar xzpf "$HOME/ifs/downloads/make-3.81.tar.gz"
+ touch "$HOME/ifs/stamps/make-unpack"
+fi
+
+#
+# Configure make
+#
+if [ ! -f "$HOME/ifs/stamps/make-configure" ];
+then
+ cd "$HOME/ifs/source/make-3.81"
+ ./configure --prefix=/usr
+ touch "$HOME/ifs/stamps/make-configure"
+fi
+
+#
+# Build and install make
+#
+if [ ! -f "$HOME/ifs/stamps/make-build" ];
+then
+ cd "$HOME/ifs/source/make-3.81"
+ gmake
+ touch "$HOME/ifs/stamps/make-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/make-install" ];
+then
+ cd "$HOME/ifs/source/make-3.81"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/make-install"
+fi
+
+#
+# Download and extract illumos-gcc
+#
+if [ ! -f "$HOME/ifs/stamps/gcc-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f il-gcc-444-i386.tar.bz2
+ wget http://richlowe.openindiana.org/~richlowe/il-gcc-444-i386.tar.bz2
+ touch "$HOME/ifs/stamps/gcc-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/gcc-unpack" ];
+then
+ cd "$HOME/ifs/chroot/opt"
+ tar xjpf "$HOME/ifs/downloads/il-gcc-444-i386.tar.bz2"
+ ln "$HOME/ifs/chroot/opt/gcc/4.4.4/lib/libgcc_s.so.1" "$HOME/ifs/chroot/lib"
+ touch "$HOME/ifs/stamps/gcc-unpack"
+fi
