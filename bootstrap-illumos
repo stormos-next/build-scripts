@@ -72,7 +72,7 @@ fi
 #
 if [ ! -f "$HOME/ifs/stamps/illumos-clone" ];
 then
- cd "$HOME/ifs"
+ cd "$HOME/ifs/source"
  rm -rf illumos-gate
  git clone git://github.com/illumos/illumos-gate.git
  touch "$HOME/ifs/stamps/illumos-clone"
@@ -81,10 +81,10 @@ fi
 #
 # Create ifs.sh environment file
 #
-cd "$HOME/ifs/illumos-gate"
+cd "$HOME/ifs/source/illumos-gate"
 cat usr/src/tools/env/illumos.sh | \
  sed -e "s#^export GATE='.*'\$#export GATE=\"illumos-gate\"#g" \
-  -e "s#^export CODEMGR_WS=\".*\"\$#export CODEMGR_WS=\"$HOME/ifs/illumos-gate\"#g" \
+  -e "s#^export CODEMGR_WS=\".*\"\$#export CODEMGR_WS=\"$HOME/ifs/source/illumos-gate\"#g" \
   -e "s#^export ROOT=\".*\"\$#export ROOT=\"$HOME/ifs/chroot\"#g" \
   -e "s#^export VERSION=\".*\"\$#export VERSION=\"ifs\"#g" \
   -e "s#^export STAFFER=\".*\"\$#export STAFFER=\"$LOGNAME\"#g" \
@@ -105,7 +105,7 @@ fi
 
 if [ ! -f "$HOME/ifs/stamps/closed-unpack" ];
 then
- cd "$HOME/ifs/illumos-gate"
+ cd "$HOME/ifs/source/illumos-gate"
  tar xjpf "$HOME/ifs/downloads/on-closed-bins.i386.tar.bz2"
  tar xjpf "$HOME/ifs/downloads/on-closed-bins-nd.i386.tar.bz2"
  touch "$HOME/ifs/stamps/closed-unpack"
@@ -116,14 +116,14 @@ fi
 #
 if [ ! -f "$HOME/ifs/stamps/illumos-setup" ];
 then
- cd "$HOME/ifs/illumos-gate"
+ cd "$HOME/ifs/source/illumos-gate"
  ksh ./usr/src/tools/scripts/bldenv.sh -c ifs.sh 'cd usr/src && dmake setup'
  touch "$HOME/ifs/stamps/illumos-setup"
 fi
 
 if [ ! -f "$HOME/ifs/stamps/illumos-install" ];
 then
- cd "$HOME/ifs/illumos-gate"
+ cd "$HOME/ifs/source/illumos-gate"
  ksh ./usr/src/tools/scripts/bldenv.sh -c ifs.sh 'cd usr/src && dmake install'
  touch "$HOME/ifs/stamps/illumos-install"
 fi
