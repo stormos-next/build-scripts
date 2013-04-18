@@ -1,0 +1,33 @@
+#!/bin/ksh
+# Copyright (c) 2013 Andrew Stormont <andyjstormont@gmail.com>
+
+#
+# Exit on error
+#
+set -e
+
+#
+# It's best to run this as root
+#
+if [ `id -u` -eq 0 ];
+then
+ echo "Please don't run this as root"
+ exit 1
+fi
+
+#
+# Make sure illumos chroot is ready first
+#
+if [ ! -f "$HOME/ifs/stamps/illumos-chroot" ];
+then
+ echo "Please run bootstrap-illumos first"
+ exit 1
+fi
+
+#
+# Mount external resources
+#
+sudo mount -F proc /proc "$HOME/ifs/chroot/proc"
+sudo mount -F lofs /dev "$HOME/ifs/chroot/dev"
+sudo mount -F lofs /devices "$HOME/ifs/chroot/devices"
+sudo mount -F lofs /var/run "$HOME/ifs/chroot/var/run"
