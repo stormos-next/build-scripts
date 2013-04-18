@@ -282,6 +282,53 @@ then
 fi
 
 #
+# Download and extract diffutils
+#
+if [ ! -f "$HOME/ifs/stamps/diff-download" ];
+then
+ cd "$HOME/ifs/downloads"
+ rm -f diffutils-2.8.7.tar.gz
+ wget http://alpha.gnu.org/gnu/diffutils/diffutils-2.8.7.tar.gz
+ touch "$HOME/ifs/stamps/diff-download"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/diff-unpack" ];
+then
+ cd "$HOME/ifs/source"
+ rm -rf diffutils-2.8.7
+ tar xzpf "$HOME/ifs/downloads/diffutils-2.8.7.tar.gz"
+ touch "$HOME/ifs/stamps/diff-unpack"
+fi
+
+#
+# Configure diffutils
+#
+if [ ! -f "$HOME/ifs/stamps/diff-configure" ];
+then
+ cd "$HOME/ifs/source/diffutils-2.8.7"
+ rm -f config.status
+ ./configure --prefix=/usr/gnu
+ touch "$HOME/ifs/stamps/diff-configure"
+fi
+
+#
+# Build and install diffutils
+#
+if [ ! -f "$HOME/ifs/stamps/diff-build" ];
+then
+ cd "$HOME/ifs/source/diffutils-2.8.7"
+ gmake
+ touch "$HOME/ifs/stamps/diff-build"
+fi
+
+if [ ! -f "$HOME/ifs/stamps/diff-install" ];
+then
+ cd "$HOME/ifs/source/diffutils-2.8.7"
+ gmake install DESTDIR="$HOME/ifs/chroot"
+ touch "$HOME/ifs/stamps/diff-install"
+fi
+
+#
 # Download and extract illumos-gcc
 #
 if [ ! -f "$HOME/ifs/stamps/gcc-download" ];
